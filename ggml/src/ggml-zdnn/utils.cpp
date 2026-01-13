@@ -155,4 +155,97 @@ void ggml_zdnn_init_tensor(ggml_backend_zdnn_buffer * buffer, const ggml_tensor 
 
     ZDNN_CHECK(zdnn_generate_transformed_desc(&buffer->pre_tfm_desc, &buffer->tfm_desc));
     ZDNN_CHECK(zdnn_init_ztensor_with_malloc(&buffer->pre_tfm_desc, &buffer->tfm_desc, &buffer->ztensor));
+
+    // Initialize validity tracking - data is current (not yet stickified)
+    buffer->valid_repr = ZDNN_REPR_DATA_CURRENT;
+}
+
+// ============================================================================
+// Lazy Unstickification Implementation
+// ============================================================================
+
+void ggml_zdnn_ensure_stickified(ggml_backend_zdnn_buffer * buffer, const ggml_tensor * tensor) {
+    if (!buffer || !tensor) return;
+
+    // Check if ztensor is already valid
+    if (buffer->valid_repr == ZDNN_REPR_ZTENSOR_CURRENT ||
+        buffer->valid_repr == ZDNN_REPR_BOTH_CURRENT) {
+        // ztensor is already valid, nothing to do
+        return;
+    }
+
+    // Float data is current (or both are stale) - need to stickify
+    // Reset ztensor if it was previously transformed
+    if (buffer->ztensor.is_transformed) {
+        zdnn_reset_ztensor(&buffer->ztensor);
+    }
+
+    // Determine the data source
+    void * src_data = tensor->data;
+    if (buffer->dequant_data) {
+        // Use dequantized data for quantized types
+        src_data = buffer->dequant_data;
+    }
+
+    // Transform to stickified format
+    ZDNN_CHECK(zdnn_transform_ztensor(&buffer->ztensor, src_data));
+
+    // Now both are current (we just synced ztensor from float data)
+    buffer->valid_repr = ZDNN_REPR_BOTH_CURRENT;
+}
+
+void ggml_zdnn_ensure_float_data(ggml_backend_zdnn_buffer * buffer, ggml_tensor * tensor) {
+    if (!buffer || !tensor) return;
+
+    // Check if float data is already valid
+    if (buffer->valid_repr == ZDNN_REPR_DATA_CURRENT ||
+        buffer->valid_repr == ZDNN_REPR_BOTH_CURRENT) {
+        // Float data is already valid, nothing to do
+        return;
+    }
+
+    // ztensor is current - need to unstickify
+    if (!buffer->ztensor.is_transformed) {
+        // ztensor hasn't been transformed yet - this shouldn't happen
+        // if valid_repr is ZTENSOR_CURRENT, but handle gracefully
+        GGML_LOG_WARN("ggml_zdnn_ensure_float_data: ztensor not transformed but marked current\n");
+        buffer->valid_repr = ZDNN_REPR_NONE;
+        return;
+    }
+
+    // Unstickify to float data
+    ZDNN_CHECK(zdnn_transform_origtensor(&buffer->ztensor, tensor->data));
+
+    // Now both are current (we just synced float data from ztensor)
+    buffer->valid_repr = ZDNN_REPR_BOTH_CURRENT;
+}
+
+void ggml_zdnn_mark_ztensor_current(ggml_backend_zdnn_buffer * buffer) {
+    if (buffer) {
+        buffer->valid_repr = ZDNN_REPR_ZTENSOR_CURRENT;
+    }
+}
+
+void ggml_zdnn_mark_float_current(ggml_backend_zdnn_buffer * buffer) {
+    if (buffer) {
+        buffer->valid_repr = ZDNN_REPR_DATA_CURRENT;
+    }
+}
+
+void ggml_zdnn_mark_both_current(ggml_backend_zdnn_buffer * buffer) {
+    if (buffer) {
+        buffer->valid_repr = ZDNN_REPR_BOTH_CURRENT;
+    }
+}
+
+bool ggml_zdnn_is_ztensor_valid(const ggml_backend_zdnn_buffer * buffer) {
+    if (!buffer) return false;
+    return buffer->valid_repr == ZDNN_REPR_ZTENSOR_CURRENT ||
+           buffer->valid_repr == ZDNN_REPR_BOTH_CURRENT;
+}
+
+bool ggml_zdnn_is_float_valid(const ggml_backend_zdnn_buffer * buffer) {
+    if (!buffer) return false;
+    return buffer->valid_repr == ZDNN_REPR_DATA_CURRENT ||
+           buffer->valid_repr == ZDNN_REPR_BOTH_CURRENT;
 }

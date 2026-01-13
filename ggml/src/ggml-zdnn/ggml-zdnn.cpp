@@ -734,10 +734,16 @@ static void ggml_backend_zdnn_buffer_set_tensor(ggml_backend_buffer_t buffer, gg
 
     // Fixes the LLAMA_SET_ROWS bug
     // see: https://github.com/ggml-org/llama.cpp/issues/15414
-    if (tensor->buffer->usage == GGML_BACKEND_BUFFER_USAGE_COMPUTE && extra->ztensor.is_transformed) zdnn_reset_ztensor(&extra->ztensor);
+    if (tensor->buffer->usage == GGML_BACKEND_BUFFER_USAGE_COMPUTE && extra->ztensor.is_transformed) {
+        zdnn_reset_ztensor(&extra->ztensor);
+        // Mark float data as current since ztensor was reset
+        ggml_zdnn_mark_float_current(extra);
+        return;
+    }
 
     // Skip if no ztensor was created (unsupported type)
     if (extra->ztensor.buffer_size == 0) {
+        ggml_zdnn_mark_float_current(extra);
         return;
     }
 
@@ -750,12 +756,24 @@ static void ggml_backend_zdnn_buffer_set_tensor(ggml_backend_buffer_t buffer, gg
         } else {
             ggml_zdnn_load_tensor(extra->ztensor, tensor->data);
         }
+        // Both representations are now current (we just synced them)
+        ggml_zdnn_mark_both_current(extra);
+    } else {
+        // Float data was set, ztensor may be stale
+        ggml_zdnn_mark_float_current(extra);
     }
 
     GGML_UNUSED(buffer);
 }
 
 static void ggml_backend_zdnn_buffer_get_tensor(ggml_backend_buffer_t buffer, const ggml_tensor * tensor, void * data, size_t offset, size_t size) {
+    // Ensure float data is valid before reading (lazy unstickification)
+    // This handles the case where the ztensor is current but float data is stale
+    if (tensor->view_src == nullptr && tensor->extra != nullptr) {
+        ggml_backend_zdnn_buffer * extra = (ggml_backend_zdnn_buffer *)tensor->extra;
+        ggml_zdnn_ensure_float_data(extra, const_cast<ggml_tensor *>(tensor));
+    }
+
     memcpy(data, (const char *)tensor->data + offset, size);
 
     GGML_UNUSED(buffer);

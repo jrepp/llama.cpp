@@ -11,13 +11,18 @@ void ggml_zdnn_gelu(
     ggml_backend_zdnn_buffer * src0_extra = (ggml_backend_zdnn_buffer *)src0->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
 
+    // Ensure source is stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
+
     // Reset destination tensor if already transformed (required by zDNN)
     if (dst_extra->ztensor.is_transformed) {
         zdnn_reset_ztensor(&dst_extra->ztensor);
     }
 
     ZDNN_CHECK(zdnn_gelu(&src0_extra->ztensor, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     GGML_UNUSED(ctx);
 }
@@ -31,6 +36,9 @@ void ggml_zdnn_relu(
     ggml_backend_zdnn_buffer * src0_extra = (ggml_backend_zdnn_buffer *)src0->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
 
+    // Ensure source is stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
+
     // Reset destination tensor if already transformed (required by zDNN)
     if (dst_extra->ztensor.is_transformed) {
         zdnn_reset_ztensor(&dst_extra->ztensor);
@@ -38,7 +46,9 @@ void ggml_zdnn_relu(
 
     // zdnn_relu takes a clipping value - pass NULL for no clipping
     ZDNN_CHECK(zdnn_relu(&src0_extra->ztensor, NULL, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     GGML_UNUSED(ctx);
 }
@@ -52,13 +62,18 @@ void ggml_zdnn_tanh(
     ggml_backend_zdnn_buffer * src0_extra = (ggml_backend_zdnn_buffer *)src0->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
 
+    // Ensure source is stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
+
     // Reset destination tensor if already transformed (required by zDNN)
     if (dst_extra->ztensor.is_transformed) {
         zdnn_reset_ztensor(&dst_extra->ztensor);
     }
 
     ZDNN_CHECK(zdnn_tanh(&src0_extra->ztensor, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     GGML_UNUSED(ctx);
 }
@@ -72,13 +87,18 @@ void ggml_zdnn_sigmoid(
     ggml_backend_zdnn_buffer * src0_extra = (ggml_backend_zdnn_buffer *)src0->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
 
+    // Ensure source is stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
+
     // Reset destination tensor if already transformed (required by zDNN)
     if (dst_extra->ztensor.is_transformed) {
         zdnn_reset_ztensor(&dst_extra->ztensor);
     }
 
     ZDNN_CHECK(zdnn_sigmoid(&src0_extra->ztensor, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     GGML_UNUSED(ctx);
 }
@@ -92,13 +112,18 @@ void ggml_zdnn_exp(
     ggml_backend_zdnn_buffer * src0_extra = (ggml_backend_zdnn_buffer *)src0->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
 
+    // Ensure source is stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
+
     // Reset destination tensor if already transformed (required by zDNN)
     if (dst_extra->ztensor.is_transformed) {
         zdnn_reset_ztensor(&dst_extra->ztensor);
     }
 
     ZDNN_CHECK(zdnn_exp(&src0_extra->ztensor, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     GGML_UNUSED(ctx);
 }
@@ -112,6 +137,9 @@ void ggml_zdnn_neg(
 
     ggml_backend_zdnn_buffer * src0_extra = (ggml_backend_zdnn_buffer *)src0->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
+
+    // Ensure source is stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
 
     // Create a zeros ztensor with same shape as src0
     zdnn_tensor_desc zeros_pre_tfm_desc, zeros_tfm_desc;
@@ -143,7 +171,9 @@ void ggml_zdnn_neg(
 
     // Compute 0 - src0
     ZDNN_CHECK(zdnn_sub(&zeros_ztensor, &src0_extra->ztensor, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     // Cleanup
     free(zeros_data);
@@ -161,13 +191,18 @@ void ggml_zdnn_sqrt(
     ggml_backend_zdnn_buffer * src0_extra = (ggml_backend_zdnn_buffer *)src0->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
 
+    // Ensure source is stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
+
     // Reset destination tensor if already transformed (required by zDNN)
     if (dst_extra->ztensor.is_transformed) {
         zdnn_reset_ztensor(&dst_extra->ztensor);
     }
 
     ZDNN_CHECK(zdnn_sqrt(&src0_extra->ztensor, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     GGML_UNUSED(ctx);
 }
@@ -181,13 +216,18 @@ void ggml_zdnn_log(
     ggml_backend_zdnn_buffer * src0_extra = (ggml_backend_zdnn_buffer *)src0->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
 
+    // Ensure source is stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
+
     // Reset destination tensor if already transformed (required by zDNN)
     if (dst_extra->ztensor.is_transformed) {
         zdnn_reset_ztensor(&dst_extra->ztensor);
     }
 
     ZDNN_CHECK(zdnn_log(&src0_extra->ztensor, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     GGML_UNUSED(ctx);
 }
@@ -200,6 +240,9 @@ void ggml_zdnn_silu(
 
     ggml_backend_zdnn_buffer * src0_extra = (ggml_backend_zdnn_buffer *)src0->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
+
+    // Ensure source is stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
 
     // Create a temporary ztensor for sigmoid result
     zdnn_tensor_desc temp_pre_tfm_desc, temp_tfm_desc;
@@ -228,7 +271,9 @@ void ggml_zdnn_silu(
 
     // Compute src0 * sigmoid(src0) into dst
     ZDNN_CHECK(zdnn_mul(&src0_extra->ztensor, &temp_ztensor, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     // Cleanup
     zdnn_free_ztensor_buffer(&temp_ztensor);
@@ -246,6 +291,9 @@ void ggml_zdnn_leaky_relu(
     ggml_backend_zdnn_buffer * src0_extra = (ggml_backend_zdnn_buffer *)src0->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
 
+    // Ensure source is stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
+
     // Reset destination tensor if already transformed (required by zDNN)
     if (dst_extra->ztensor.is_transformed) {
         zdnn_reset_ztensor(&dst_extra->ztensor);
@@ -253,7 +301,9 @@ void ggml_zdnn_leaky_relu(
 
     // zdnn_leaky_relu takes: input, clipping_value (NULL for no clipping), alpha, output
     ZDNN_CHECK(zdnn_leaky_relu(&src0_extra->ztensor, NULL, negative_slope, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     GGML_UNUSED(ctx);
 }

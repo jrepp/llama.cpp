@@ -13,13 +13,19 @@ void ggml_zdnn_add(
     ggml_backend_zdnn_buffer * src1_extra = (ggml_backend_zdnn_buffer *)src1->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
 
+    // Ensure sources are stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
+    ggml_zdnn_ensure_stickified(src1_extra, src1);
+
     // Reset destination tensor if already transformed (required by zDNN)
     if (dst_extra->ztensor.is_transformed) {
         zdnn_reset_ztensor(&dst_extra->ztensor);
     }
 
     ZDNN_CHECK(zdnn_add(&src0_extra->ztensor, &src1_extra->ztensor, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     GGML_UNUSED(ctx);
 }
@@ -35,13 +41,19 @@ void ggml_zdnn_mul(
     ggml_backend_zdnn_buffer * src1_extra = (ggml_backend_zdnn_buffer *)src1->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
 
+    // Ensure sources are stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
+    ggml_zdnn_ensure_stickified(src1_extra, src1);
+
     // Reset destination tensor if already transformed (required by zDNN)
     if (dst_extra->ztensor.is_transformed) {
         zdnn_reset_ztensor(&dst_extra->ztensor);
     }
 
     ZDNN_CHECK(zdnn_mul(&src0_extra->ztensor, &src1_extra->ztensor, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     GGML_UNUSED(ctx);
 }
@@ -57,13 +69,19 @@ void ggml_zdnn_sub(
     ggml_backend_zdnn_buffer * src1_extra = (ggml_backend_zdnn_buffer *)src1->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
 
+    // Ensure sources are stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
+    ggml_zdnn_ensure_stickified(src1_extra, src1);
+
     // Reset destination tensor if already transformed (required by zDNN)
     if (dst_extra->ztensor.is_transformed) {
         zdnn_reset_ztensor(&dst_extra->ztensor);
     }
 
     ZDNN_CHECK(zdnn_sub(&src0_extra->ztensor, &src1_extra->ztensor, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     GGML_UNUSED(ctx);
 }
@@ -79,13 +97,19 @@ void ggml_zdnn_div(
     ggml_backend_zdnn_buffer * src1_extra = (ggml_backend_zdnn_buffer *)src1->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
 
+    // Ensure sources are stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
+    ggml_zdnn_ensure_stickified(src1_extra, src1);
+
     // Reset destination tensor if already transformed (required by zDNN)
     if (dst_extra->ztensor.is_transformed) {
         zdnn_reset_ztensor(&dst_extra->ztensor);
     }
 
     ZDNN_CHECK(zdnn_div(&src0_extra->ztensor, &src1_extra->ztensor, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     GGML_UNUSED(ctx);
 }
@@ -100,6 +124,9 @@ void ggml_zdnn_softmax(
     ggml_backend_zdnn_buffer * src0_extra = (ggml_backend_zdnn_buffer *)src0->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
 
+    // Ensure source is stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
+
     // Reset destination tensor if already transformed (required by zDNN)
     if (dst_extra->ztensor.is_transformed) {
         zdnn_reset_ztensor(&dst_extra->ztensor);
@@ -110,7 +137,9 @@ void ggml_zdnn_softmax(
     GGML_ASSERT(save_area != nullptr);
 
     ZDNN_CHECK(zdnn_softmax(&src0_extra->ztensor, save_area, SOFTMAX_ACT_NONE, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     free(save_area);
 
@@ -129,10 +158,14 @@ void ggml_zdnn_rms_norm(
     ggml_backend_zdnn_buffer * src0_extra = (ggml_backend_zdnn_buffer *)src0->extra;
     ggml_backend_zdnn_buffer * dst_extra  = (ggml_backend_zdnn_buffer *)dst->extra;
 
+    // Ensure source is stickified (lazy stickification)
+    ggml_zdnn_ensure_stickified(src0_extra, src0);
+
     // Weight tensor is optional
     const zdnn_ztensor * weight = nullptr;
     if (src1 != nullptr && src1->extra != nullptr) {
         ggml_backend_zdnn_buffer * src1_extra = (ggml_backend_zdnn_buffer *)src1->extra;
+        ggml_zdnn_ensure_stickified(src1_extra, src1);
         weight = &src1_extra->ztensor;
     }
 
@@ -142,7 +175,9 @@ void ggml_zdnn_rms_norm(
     }
 
     ZDNN_CHECK(zdnn_rmsnorm(&src0_extra->ztensor, weight, eps, &dst_extra->ztensor));
-    ZDNN_CHECK(zdnn_transform_origtensor(&dst_extra->ztensor, dst->data));
+
+    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
+    ggml_zdnn_mark_ztensor_current(dst_extra);
 
     GGML_UNUSED(ctx);
 }
@@ -184,6 +219,12 @@ void ggml_zdnn_get_rows(
     GGML_ASSERT(src1->type == GGML_TYPE_I32);
     GGML_ASSERT(dst->type == GGML_TYPE_F32);
 
+    // Ensure float data is valid for raw-data operations
+    if (src0->extra) {
+        ggml_zdnn_ensure_float_data((ggml_backend_zdnn_buffer *)src0->extra,
+                                    const_cast<ggml_tensor *>(src0));
+    }
+
     // Create lightweight ztensor wrappers for the raw data
     zdnn_tensor_desc src_desc, idx_desc, dst_desc;
     zdnn_ztensor src_zt, idx_zt, dst_zt;
@@ -224,6 +265,11 @@ void ggml_zdnn_get_rows(
         ZDNN_CHECK(zdnn_get_rows(&src_zt, &idx_zt, &dst_zt));
     }
 
+    // Mark output float data as current (raw-data operation wrote to dst->data)
+    if (dst->extra) {
+        ggml_zdnn_mark_float_current((ggml_backend_zdnn_buffer *)dst->extra);
+    }
+
     GGML_UNUSED(ctx);
 }
 
@@ -239,6 +285,12 @@ void ggml_zdnn_cont(
     GGML_ASSERT(dst->type == GGML_TYPE_F32);
     GGML_ASSERT(src0->data != nullptr);
     GGML_ASSERT(dst->data != nullptr);
+
+    // Ensure float data is valid for raw-data operations
+    if (src0->extra) {
+        ggml_zdnn_ensure_float_data((ggml_backend_zdnn_buffer *)src0->extra,
+                                    const_cast<ggml_tensor *>(src0));
+    }
 
     const float * src_data = (const float *)src0->data;
     float * dst_data = (float *)dst->data;
@@ -265,6 +317,11 @@ void ggml_zdnn_cont(
                 }
             }
         }
+    }
+
+    // Mark output float data as current (raw-data operation wrote to dst->data)
+    if (dst->extra) {
+        ggml_zdnn_mark_float_current((ggml_backend_zdnn_buffer *)dst->extra);
     }
 
     GGML_UNUSED(ctx);
@@ -296,12 +353,22 @@ void ggml_zdnn_cpy(
     GGML_ASSERT(src0->data != nullptr);
     GGML_ASSERT(dst->data != nullptr);
 
+    // Ensure float data is valid for raw-data operations
+    if (src0->extra) {
+        ggml_zdnn_ensure_float_data((ggml_backend_zdnn_buffer *)src0->extra,
+                                    const_cast<ggml_tensor *>(src0));
+    }
+
     const bool src_contiguous = ggml_is_contiguous(src0);
     const bool dst_contiguous = ggml_is_contiguous(dst);
 
     // Fast path: both contiguous with same layout
     if (src_contiguous && dst_contiguous) {
         memcpy(dst->data, src0->data, ggml_nbytes(src0));
+        // Mark output float data as current
+        if (dst->extra) {
+            ggml_zdnn_mark_float_current((ggml_backend_zdnn_buffer *)dst->extra);
+        }
         GGML_UNUSED(ctx);
         return;
     }
@@ -314,6 +381,11 @@ void ggml_zdnn_cpy(
         const size_t dst_offset = tensor_offset_for_linear_index(dst, i);
         *(float *)((char *)dst->data + dst_offset) =
             *(const float *)((const char *)src0->data + src_offset);
+    }
+
+    // Mark output float data as current
+    if (dst->extra) {
+        ggml_zdnn_mark_float_current((ggml_backend_zdnn_buffer *)dst->extra);
     }
 
     GGML_UNUSED(ctx);
@@ -330,6 +402,12 @@ void ggml_zdnn_rope(
     GGML_ASSERT(src0->type == GGML_TYPE_F32);
     GGML_ASSERT(src1->type == GGML_TYPE_I32);
     GGML_ASSERT(dst->type == GGML_TYPE_F32);
+
+    // Ensure float data is valid for raw-data operations
+    if (src0->extra) {
+        ggml_zdnn_ensure_float_data((ggml_backend_zdnn_buffer *)src0->extra,
+                                    const_cast<ggml_tensor *>(src0));
+    }
 
     // Extract parameters from op_params
     const int n_dims     = ((int32_t *) dst->op_params)[1];
@@ -356,6 +434,11 @@ void ggml_zdnn_rope(
                      dst->ne[3], dst->ne[2], dst->ne[1], dst->ne[0]);
 
     ZDNN_CHECK(zdnn_rope(&src_zt, &pos_zt, n_dims, mode, freq_base, freq_scale, &dst_zt));
+
+    // Mark output float data as current (raw-data operation wrote to dst->data)
+    if (dst->extra) {
+        ggml_zdnn_mark_float_current((ggml_backend_zdnn_buffer *)dst->extra);
+    }
 
     GGML_UNUSED(ctx);
 }

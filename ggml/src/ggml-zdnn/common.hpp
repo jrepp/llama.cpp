@@ -39,6 +39,15 @@ struct ggml_backend_zdnn_context {
     ggml_cgraph * gf;
 };
 
+// Representation validity tracking for lazy unstickification
+// This allows keeping tensors in stickified (NNPA) format between operations
+enum ggml_zdnn_repr_state {
+    ZDNN_REPR_NONE = 0,       // Buffer not yet initialized
+    ZDNN_REPR_DATA_CURRENT,   // Float data is current, ztensor may be stale
+    ZDNN_REPR_ZTENSOR_CURRENT,// Stickified data is current, float may be stale
+    ZDNN_REPR_BOTH_CURRENT    // Both representations are synchronized
+};
+
 struct ggml_backend_zdnn_buffer {
     void * data;
     ggml_backend_zdnn_buffer * extra;  // for bias, etc.
@@ -51,6 +60,11 @@ struct ggml_backend_zdnn_buffer {
     zdnn_tensor_desc pre_tfm_desc;
     zdnn_tensor_desc tfm_desc;
     zdnn_ztensor     ztensor;
+
+    // Lazy unstickification: track which representation is current
+    // This allows skipping zdnn_transform_origtensor() when the next
+    // operation also uses NNPA, keeping data in stickified format.
+    ggml_zdnn_repr_state valid_repr;
 
     char name[GGML_MAX_NAME];
 };

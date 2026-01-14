@@ -37,6 +37,10 @@ struct ggml_backend_zdnn_device_context {
 struct ggml_backend_zdnn_context {
     int device;
     ggml_cgraph * gf;
+
+    // RoPE cache for pre-computed cos/sin tables (lazy initialized)
+    zdnn_rope_cache rope_cache;
+    bool rope_cache_initialized;
 };
 
 // Representation validity tracking for lazy unstickification

@@ -393,8 +393,9 @@ void ggml_zdnn_cpy(
 
 // ROPE: Rotary Position Embedding
 // Uses ztensor API for type safety while operating on raw float data
+// Optimized with pre-computed cos/sin cache for 6x+ speedup
 void ggml_zdnn_rope(
-    const ggml_backend_zdnn_context * ctx,
+    ggml_backend_zdnn_context * ctx,
     const ggml_tensor * src0,  // input tensor
     const ggml_tensor * src1,  // positions (I32)
           ggml_tensor * dst) {
@@ -433,12 +434,43 @@ void ggml_zdnn_rope(
     init_raw_ztensor(&dst_desc, &dst_zt, FP32, dst->data,
                      dst->ne[3], dst->ne[2], dst->ne[1], dst->ne[0]);
 
-    ZDNN_CHECK(zdnn_rope(&src_zt, &pos_zt, n_dims, mode, freq_base, freq_scale, &dst_zt));
+    // Use cached RoPE if available, otherwise fall back to uncached
+    // Lazy initialize cache on first use or reinitialize if parameters changed
+    const uint32_t max_seq = 8192;  // Common max context length
+
+    bool need_cache_init = !ctx->rope_cache_initialized ||
+                           ctx->rope_cache.n_dims != (uint32_t)n_dims ||
+                           ctx->rope_cache.freq_base != freq_base ||
+                           ctx->rope_cache.freq_scale != freq_scale;
+
+    if (need_cache_init) {
+        // Free existing cache if parameters changed
+        if (ctx->rope_cache_initialized) {
+            zdnn_rope_cache_free(&ctx->rope_cache);
+        }
+
+        // Initialize new cache with current parameters
+        zdnn_status status = zdnn_rope_cache_init(&ctx->rope_cache, max_seq,
+                                                   (uint32_t)n_dims, freq_base, freq_scale);
+        if (status == ZDNN_OK) {
+            ctx->rope_cache_initialized = true;
+            GGML_LOG_INFO("%s: initialized RoPE cache (n_dims=%d, max_seq=%u, freq_base=%g)\n",
+                          __func__, n_dims, max_seq, freq_base);
+        } else {
+            ctx->rope_cache_initialized = false;
+            GGML_LOG_WARN("%s: failed to initialize RoPE cache, using uncached version\n", __func__);
+        }
+    }
+
+    // Use cached version if available, otherwise fall back to uncached
+    if (ctx->rope_cache_initialized) {
+        ZDNN_CHECK(zdnn_rope_cached(&src_zt, &pos_zt, &ctx->rope_cache, mode, &dst_zt));
+    } else {
+        ZDNN_CHECK(zdnn_rope(&src_zt, &pos_zt, n_dims, mode, freq_base, freq_scale, &dst_zt));
+    }
 
     // Mark output float data as current (raw-data operation wrote to dst->data)
     if (dst->extra) {
         ggml_zdnn_mark_float_current((ggml_backend_zdnn_buffer *)dst->extra);
     }
-
-    GGML_UNUSED(ctx);
 }

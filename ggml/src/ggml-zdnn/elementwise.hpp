@@ -65,9 +65,9 @@ void ggml_zdnn_cpy(
     const ggml_tensor * src0,
           ggml_tensor * dst);
 
-// ROPE: Rotary Position Embedding
+// ROPE: Rotary Position Embedding (with pre-computed cos/sin cache)
 void ggml_zdnn_rope(
-    const ggml_backend_zdnn_context * ctx,
+    ggml_backend_zdnn_context * ctx,  // non-const for rope cache
     const ggml_tensor * src0,  // input tensor
     const ggml_tensor * src1,  // positions (I32)
           ggml_tensor * dst);

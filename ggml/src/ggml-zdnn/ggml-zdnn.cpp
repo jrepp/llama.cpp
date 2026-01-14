@@ -620,11 +620,22 @@ static ggml_backend_zdnn_context * ggml_zdnn_init(ggml_backend_dev_t dev) {
 
     ctx->gf = nullptr;
 
+    // Initialize RoPE cache state (lazy initialized on first use)
+    ctx->rope_cache_initialized = false;
+    memset(&ctx->rope_cache, 0, sizeof(ctx->rope_cache));
+
     return ctx;
 }
 
 static void ggml_zdnn_free(ggml_backend_zdnn_context * ctx) {
     GGML_LOG_INFO("%s: deallocating\n", __func__);
+
+    // Free RoPE cache if initialized
+    if (ctx->rope_cache_initialized) {
+        zdnn_rope_cache_free(&ctx->rope_cache);
+        ctx->rope_cache_initialized = false;
+    }
+
     delete ctx;
 }
 

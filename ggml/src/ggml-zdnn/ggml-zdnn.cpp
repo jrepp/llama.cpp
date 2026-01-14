@@ -862,7 +862,11 @@ static size_t ggml_backend_zdnn_buffer_type_get_alignment(ggml_backend_buffer_ty
 }
 
 static bool ggml_backend_zdnn_buffer_type_is_host(ggml_backend_buffer_type_t buft) {
-    return true;
+    // Return false to force tensor access through get_tensor/set_tensor
+    // This is required because zDNN uses lazy unstickification - tensor->data
+    // might contain stale float data if the tensor was produced by a zDNN op.
+    // get_tensor properly calls ensure_float_data to sync the data.
+    return false;
 
     GGML_UNUSED(buft);
 }

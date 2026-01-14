@@ -164,15 +164,30 @@ void ggml_zdnn_init_tensor(ggml_backend_zdnn_buffer * buffer, const ggml_tensor 
 // Lazy Unstickification Implementation
 // ============================================================================
 
+// Disable lazy optimization to test if it's causing issues
+#define DISABLE_LAZY_UNSTICKIFY 1
+
 void ggml_zdnn_ensure_stickified(ggml_backend_zdnn_buffer * buffer, const ggml_tensor * tensor) {
     if (!buffer || !tensor) return;
 
-    // Check if ztensor is already valid
+#if DISABLE_LAZY_UNSTICKIFY
+    // When lazy optimization is disabled, always re-sync from float data
+    // First ensure float data is valid (unstickify if needed)
+    if (buffer->valid_repr == ZDNN_REPR_ZTENSOR_CURRENT) {
+        // ztensor is current but float data is stale - unstickify first
+        if (buffer->ztensor.is_transformed) {
+            ZDNN_CHECK(zdnn_transform_origtensor(&buffer->ztensor, const_cast<ggml_tensor*>(tensor)->data));
+            buffer->valid_repr = ZDNN_REPR_BOTH_CURRENT;
+        }
+    }
+#else
+    // Check if ztensor is already valid (lazy optimization enabled)
     if (buffer->valid_repr == ZDNN_REPR_ZTENSOR_CURRENT ||
         buffer->valid_repr == ZDNN_REPR_BOTH_CURRENT) {
         // ztensor is already valid, nothing to do
         return;
     }
+#endif
 
     // Float data is current (or both are stale) - need to stickify
     // Reset ztensor if it was previously transformed
@@ -181,7 +196,7 @@ void ggml_zdnn_ensure_stickified(ggml_backend_zdnn_buffer * buffer, const ggml_t
     }
 
     // Determine the data source
-    void * src_data = tensor->data;
+    void * src_data = const_cast<ggml_tensor*>(tensor)->data;
     if (buffer->dequant_data) {
         // Use dequantized data for quantized types
         src_data = buffer->dequant_data;

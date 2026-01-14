@@ -462,12 +462,11 @@ void ggml_zdnn_rope(
         }
     }
 
-    // Use cached version if available, otherwise fall back to uncached
-    if (ctx->rope_cache_initialized) {
-        ZDNN_CHECK(zdnn_rope_cached(&src_zt, &pos_zt, &ctx->rope_cache, mode, &dst_zt));
-    } else {
-        ZDNN_CHECK(zdnn_rope(&src_zt, &pos_zt, n_dims, mode, freq_base, freq_scale, &dst_zt));
-    }
+    // Use uncached version for now - cache disabled pending debugging
+    // TODO: Fix RoPE cache and re-enable
+    ZDNN_CHECK(zdnn_rope(&src_zt, &pos_zt, n_dims, mode, freq_base, freq_scale, &dst_zt));
+
+    GGML_UNUSED(need_cache_init);
 
     // Mark output float data as current (raw-data operation wrote to dst->data)
     if (dst->extra) {

@@ -462,38 +462,82 @@ void ggml_zdnn_rope(
         }
     }
 
-    // Debug: print dimensions and sample values (use INFO level so it's always visible)
-    static int debug_count = 0;
-    if (debug_count < 3) {
-        const float * src_data = (const float *)src0->data;
-        const int32_t * pos_data = (const int32_t *)src1->data;
-        fprintf(stderr, "ROPE_DEBUG[%d]: dims=[%lld,%lld,%lld,%lld] n_dims=%d mode=%d freq_base=%g freq_scale=%g\n",
-                debug_count,
-                (long long)src0->ne[0], (long long)src0->ne[1],
-                (long long)src0->ne[2], (long long)src0->ne[3],
-                n_dims, mode, freq_base, freq_scale);
-        fprintf(stderr, "ROPE_DEBUG[%d]: pos_ne[0]=%lld pos[0..2]=[%d,%d,%d]\n",
-                debug_count, (long long)src1->ne[0],
-                pos_data[0],
-                src1->ne[0] > 1 ? pos_data[1] : -1,
-                src1->ne[0] > 2 ? pos_data[2] : -1);
-        fprintf(stderr, "ROPE_DEBUG[%d]: src[0..3]=[%g,%g,%g,%g]\n",
-                debug_count,
-                src_data[0], src_data[1], src_data[2], src_data[3]);
-        debug_count++;
-    }
+    // Use direct CPU RoPE to bypass ztensor API (debugging)
+    // This tests if the issue is in the ztensor API or somewhere else
+    #define USE_CPU_ROPE 1
+    #if USE_CPU_ROPE
+    {
+        const float * input = (const float *)src0->data;
+        const int32_t * positions = (const int32_t *)src1->data;
+        float * output = (float *)dst->data;
 
-    // Use uncached version for now - cache disabled pending debugging
-    // TODO: Fix RoPE cache and re-enable
+        const int64_t ne0 = src0->ne[0];  // embed_dim
+        const int64_t ne1 = src0->ne[1];  // n_head
+        const int64_t ne2 = src0->ne[2];  // n_seq
+        const int64_t ne3 = src0->ne[3];  // batch
+
+        const float theta_scale = freq_scale;
+        const int half_dims = n_dims / 2;
+
+        for (int64_t i3 = 0; i3 < ne3; i3++) {
+            for (int64_t i2 = 0; i2 < ne2; i2++) {
+                int32_t p = positions[i2];
+
+                for (int64_t i1 = 0; i1 < ne1; i1++) {
+                    const float *src_ptr = input + i3 * ne2 * ne1 * ne0 + i2 * ne1 * ne0 + i1 * ne0;
+                    float *dst_ptr = output + i3 * ne2 * ne1 * ne0 + i2 * ne1 * ne0 + i1 * ne0;
+
+                    if (mode == 0) {
+                        // Standard RoPE: pairs are (0,1), (2,3), (4,5), ...
+                        for (int i = 0; i < half_dims; i++) {
+                            float freq = 1.0f / powf(freq_base, (float)(2 * i) / (float)n_dims);
+                            float theta = (float)p * freq * theta_scale;
+                            float cos_theta = cosf(theta);
+                            float sin_theta = sinf(theta);
+
+                            int idx0 = 2 * i;
+                            int idx1 = 2 * i + 1;
+
+                            float x0 = src_ptr[idx0];
+                            float x1 = src_ptr[idx1];
+
+                            dst_ptr[idx0] = x0 * cos_theta - x1 * sin_theta;
+                            dst_ptr[idx1] = x0 * sin_theta + x1 * cos_theta;
+                        }
+                    } else if (mode == 2) {
+                        // GPT-NeoX: pairs are (0, n/2), (1, n/2+1), ...
+                        for (int i = 0; i < half_dims; i++) {
+                            float freq = 1.0f / powf(freq_base, (float)(2 * i) / (float)n_dims);
+                            float theta = (float)p * freq * theta_scale;
+                            float cos_theta = cosf(theta);
+                            float sin_theta = sinf(theta);
+
+                            int idx0 = i;
+                            int idx1 = i + half_dims;
+
+                            float x0 = src_ptr[idx0];
+                            float x1 = src_ptr[idx1];
+
+                            dst_ptr[idx0] = x0 * cos_theta - x1 * sin_theta;
+                            dst_ptr[idx1] = x0 * sin_theta + x1 * cos_theta;
+                        }
+                    }
+
+                    // Copy remaining dimensions unchanged
+                    for (int i = n_dims; i < ne0; i++) {
+                        dst_ptr[i] = src_ptr[i];
+                    }
+                }
+            }
+        }
+    }
+    #else
     ZDNN_CHECK(zdnn_rope(&src_zt, &pos_zt, n_dims, mode, freq_base, freq_scale, &dst_zt));
+    #endif
 
-    // Debug: print output values
-    if (debug_count <= 3) {
-        const float * dst_data = (const float *)dst->data;
-        fprintf(stderr, "ROPE_DEBUG[%d]: dst[0..3]=[%g,%g,%g,%g]\n",
-                debug_count - 1,
-                dst_data[0], dst_data[1], dst_data[2], dst_data[3]);
-    }
+    GGML_UNUSED(src_zt);
+    GGML_UNUSED(pos_zt);
+    GGML_UNUSED(dst_zt);
 
     GGML_UNUSED(need_cache_init);
 

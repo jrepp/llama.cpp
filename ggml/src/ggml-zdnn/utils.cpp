@@ -209,8 +209,17 @@ void ggml_zdnn_ensure_stickified(ggml_backend_zdnn_buffer * buffer, const ggml_t
     buffer->valid_repr = ZDNN_REPR_BOTH_CURRENT;
 }
 
+// Debug counter for ensure_float_data
+static int ensure_float_count = 0;
+
 void ggml_zdnn_ensure_float_data(ggml_backend_zdnn_buffer * buffer, ggml_tensor * tensor) {
     if (!buffer || !tensor) return;
+
+    ensure_float_count++;
+    if (ensure_float_count <= 5 || ensure_float_count % 1000 == 0) {
+        GGML_LOG_INFO("ensure_float_data #%d: %s valid_repr=%d is_transformed=%d\n",
+                      ensure_float_count, tensor->name, buffer->valid_repr, buffer->ztensor.is_transformed);
+    }
 
     // Check if float data is already valid
     if (buffer->valid_repr == ZDNN_REPR_DATA_CURRENT ||
@@ -227,6 +236,9 @@ void ggml_zdnn_ensure_float_data(ggml_backend_zdnn_buffer * buffer, ggml_tensor 
         buffer->valid_repr = ZDNN_REPR_NONE;
         return;
     }
+
+    // Actually unstickifying
+    GGML_LOG_INFO("ensure_float_data: UNSTICKIFYING %s\n", tensor->name);
 
     // Unstickify to float data
     ZDNN_CHECK(zdnn_transform_origtensor(&buffer->ztensor, tensor->data));

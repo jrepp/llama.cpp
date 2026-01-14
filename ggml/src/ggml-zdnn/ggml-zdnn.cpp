@@ -730,7 +730,15 @@ static void ggml_backend_zdnn_buffer_memset_tensor(ggml_backend_buffer_t buffer,
     GGML_UNUSED(buffer);
 }
 
+// Debug counter for set_tensor calls
+static int set_tensor_call_count = 0;
+
 static void ggml_backend_zdnn_buffer_set_tensor(ggml_backend_buffer_t buffer, ggml_tensor * tensor, const void * data, size_t offset, size_t size) {
+    set_tensor_call_count++;
+    if (set_tensor_call_count <= 5 || set_tensor_call_count % 1000 == 0) {
+        GGML_LOG_INFO("zdnn set_tensor #%d: %s offset=%zu size=%zu\n",
+                      set_tensor_call_count, tensor->name, offset, size);
+    }
     memcpy((char *)tensor->data + offset, data, size);
 
     // View tensors don't have extra set up - they share their source's buffer
@@ -777,7 +785,16 @@ static void ggml_backend_zdnn_buffer_set_tensor(ggml_backend_buffer_t buffer, gg
     GGML_UNUSED(buffer);
 }
 
+// Debug counter for get_tensor calls
+static int get_tensor_call_count = 0;
+
 static void ggml_backend_zdnn_buffer_get_tensor(ggml_backend_buffer_t buffer, const ggml_tensor * tensor, void * data, size_t offset, size_t size) {
+    get_tensor_call_count++;
+    if (get_tensor_call_count <= 5 || get_tensor_call_count % 1000 == 0) {
+        GGML_LOG_INFO("zdnn get_tensor #%d: %s offset=%zu size=%zu\n",
+                      get_tensor_call_count, tensor->name, offset, size);
+    }
+
     // Ensure float data is valid before reading (lazy unstickification)
     // This handles the case where the ztensor is current but float data is stale
     if (tensor->view_src == nullptr && tensor->extra != nullptr) {

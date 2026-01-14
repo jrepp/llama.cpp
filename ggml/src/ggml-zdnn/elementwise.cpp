@@ -462,9 +462,38 @@ void ggml_zdnn_rope(
         }
     }
 
+    // Debug: print dimensions and sample values (use INFO level so it's always visible)
+    static int debug_count = 0;
+    if (debug_count < 3) {
+        const float * src_data = (const float *)src0->data;
+        const int32_t * pos_data = (const int32_t *)src1->data;
+        fprintf(stderr, "ROPE_DEBUG[%d]: dims=[%lld,%lld,%lld,%lld] n_dims=%d mode=%d freq_base=%g freq_scale=%g\n",
+                debug_count,
+                (long long)src0->ne[0], (long long)src0->ne[1],
+                (long long)src0->ne[2], (long long)src0->ne[3],
+                n_dims, mode, freq_base, freq_scale);
+        fprintf(stderr, "ROPE_DEBUG[%d]: pos_ne[0]=%lld pos[0..2]=[%d,%d,%d]\n",
+                debug_count, (long long)src1->ne[0],
+                pos_data[0],
+                src1->ne[0] > 1 ? pos_data[1] : -1,
+                src1->ne[0] > 2 ? pos_data[2] : -1);
+        fprintf(stderr, "ROPE_DEBUG[%d]: src[0..3]=[%g,%g,%g,%g]\n",
+                debug_count,
+                src_data[0], src_data[1], src_data[2], src_data[3]);
+        debug_count++;
+    }
+
     // Use uncached version for now - cache disabled pending debugging
     // TODO: Fix RoPE cache and re-enable
     ZDNN_CHECK(zdnn_rope(&src_zt, &pos_zt, n_dims, mode, freq_base, freq_scale, &dst_zt));
+
+    // Debug: print output values
+    if (debug_count <= 3) {
+        const float * dst_data = (const float *)dst->data;
+        fprintf(stderr, "ROPE_DEBUG[%d]: dst[0..3]=[%g,%g,%g,%g]\n",
+                debug_count - 1,
+                dst_data[0], dst_data[1], dst_data[2], dst_data[3]);
+    }
 
     GGML_UNUSED(need_cache_init);
 

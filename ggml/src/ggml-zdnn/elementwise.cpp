@@ -225,6 +225,36 @@ void ggml_zdnn_get_rows(
                                     const_cast<ggml_tensor *>(src0));
     }
 
+    // Use direct CPU implementation to bypass ztensor API (debugging)
+    #define USE_CPU_GET_ROWS 1
+    #if USE_CPU_GET_ROWS
+    {
+        const float * src = (const float *)src0->data;
+        const int32_t * indices = (const int32_t *)src1->data;
+        float * output = (float *)dst->data;
+
+        const int64_t embed_dim = src0->ne[0];
+        const int64_t vocab_size = src0->ne[1];
+        const int64_t num_indices = ggml_nelements(src1);
+        const size_t row_bytes = (size_t)embed_dim * sizeof(float);
+
+        for (int64_t i = 0; i < num_indices; i++) {
+            int32_t row_idx = indices[i];
+
+            // Bounds check
+            if (row_idx < 0 || row_idx >= vocab_size) {
+                GGML_LOG_ERROR("GET_ROWS: index %d out of bounds [0, %lld)\n",
+                               row_idx, (long long)vocab_size);
+                continue;
+            }
+
+            const float *src_row = src + (int64_t)row_idx * embed_dim;
+            float *dst_row = output + i * embed_dim;
+
+            memcpy(dst_row, src_row, row_bytes);
+        }
+    }
+    #else
     // Create lightweight ztensor wrappers for the raw data
     zdnn_tensor_desc src_desc, idx_desc, dst_desc;
     zdnn_ztensor src_zt, idx_zt, dst_zt;
@@ -264,6 +294,7 @@ void ggml_zdnn_get_rows(
 
         ZDNN_CHECK(zdnn_get_rows(&src_zt, &idx_zt, &dst_zt));
     }
+    #endif
 
     // Mark output float data as current (raw-data operation wrote to dst->data)
     if (dst->extra) {

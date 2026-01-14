@@ -99,8 +99,8 @@ void ggml_zdnn_mul_mat_f(
     ZDNN_CHECK(zdnn_matmul_transpose_op(&inputs_extra->ztensor, &weights_extra->ztensor, &bias_extra->ztensor,
                                         false, true, MATMUL_OP_ADDITION, &output_extra->ztensor));
 
-    // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
-    ggml_zdnn_mark_ztensor_current(output_extra);
+    // Sync output: unstickify immediately for CPU fallback compatibility
+    ggml_zdnn_sync_output(output_extra, output);
 
     GGML_UNUSED(ctx);
     GGML_UNUSED(weights_rows);

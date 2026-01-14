@@ -25,7 +25,7 @@ void ggml_zdnn_add(
     ZDNN_CHECK(zdnn_add(&src0_extra->ztensor, &src1_extra->ztensor, &dst_extra->ztensor));
 
     // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
-    ggml_zdnn_mark_ztensor_current(dst_extra);
+    ggml_zdnn_sync_output(dst_extra, dst);
 
     GGML_UNUSED(ctx);
 }
@@ -53,7 +53,7 @@ void ggml_zdnn_mul(
     ZDNN_CHECK(zdnn_mul(&src0_extra->ztensor, &src1_extra->ztensor, &dst_extra->ztensor));
 
     // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
-    ggml_zdnn_mark_ztensor_current(dst_extra);
+    ggml_zdnn_sync_output(dst_extra, dst);
 
     GGML_UNUSED(ctx);
 }
@@ -81,7 +81,7 @@ void ggml_zdnn_sub(
     ZDNN_CHECK(zdnn_sub(&src0_extra->ztensor, &src1_extra->ztensor, &dst_extra->ztensor));
 
     // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
-    ggml_zdnn_mark_ztensor_current(dst_extra);
+    ggml_zdnn_sync_output(dst_extra, dst);
 
     GGML_UNUSED(ctx);
 }
@@ -109,7 +109,7 @@ void ggml_zdnn_div(
     ZDNN_CHECK(zdnn_div(&src0_extra->ztensor, &src1_extra->ztensor, &dst_extra->ztensor));
 
     // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
-    ggml_zdnn_mark_ztensor_current(dst_extra);
+    ggml_zdnn_sync_output(dst_extra, dst);
 
     GGML_UNUSED(ctx);
 }
@@ -139,7 +139,7 @@ void ggml_zdnn_softmax(
     ZDNN_CHECK(zdnn_softmax(&src0_extra->ztensor, save_area, SOFTMAX_ACT_NONE, &dst_extra->ztensor));
 
     // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
-    ggml_zdnn_mark_ztensor_current(dst_extra);
+    ggml_zdnn_sync_output(dst_extra, dst);
 
     free(save_area);
 
@@ -177,7 +177,7 @@ void ggml_zdnn_rms_norm(
     ZDNN_CHECK(zdnn_rmsnorm(&src0_extra->ztensor, weight, eps, &dst_extra->ztensor));
 
     // Mark ztensor as current (lazy unstickification - skip transform_origtensor)
-    ggml_zdnn_mark_ztensor_current(dst_extra);
+    ggml_zdnn_sync_output(dst_extra, dst);
 
     GGML_UNUSED(ctx);
 }

@@ -60,6 +60,16 @@ void ggml_zdnn_ensure_float_data(ggml_backend_zdnn_buffer * buffer, ggml_tensor 
 void ggml_zdnn_mark_ztensor_current(ggml_backend_zdnn_buffer * buffer);
 
 /**
+ * Sync output after a zDNN operation: unstickify the ztensor to float data.
+ * This ensures float data is always valid for CPU fallback operations.
+ * Call this instead of mark_ztensor_current when CPU fallback is possible.
+ *
+ * @param buffer  The zdnn buffer containing the output
+ * @param tensor  The ggml tensor (for float data destination)
+ */
+void ggml_zdnn_sync_output(ggml_backend_zdnn_buffer * buffer, ggml_tensor * tensor);
+
+/**
  * Mark the float data as the current representation (ztensor may be stale).
  * Call this after a CPU operation writes to the float data.
  *

@@ -253,6 +253,19 @@ void ggml_zdnn_mark_ztensor_current(ggml_backend_zdnn_buffer * buffer) {
     }
 }
 
+void ggml_zdnn_sync_output(ggml_backend_zdnn_buffer * buffer, ggml_tensor * tensor) {
+    if (!buffer || !tensor) return;
+
+    // Mark ztensor as current since we just computed it
+    buffer->valid_repr = ZDNN_REPR_ZTENSOR_CURRENT;
+
+    // Immediately unstickify to ensure float data is valid for CPU fallback
+    if (buffer->ztensor.is_transformed) {
+        ZDNN_CHECK(zdnn_transform_origtensor(&buffer->ztensor, tensor->data));
+        buffer->valid_repr = ZDNN_REPR_BOTH_CURRENT;
+    }
+}
+
 void ggml_zdnn_mark_float_current(ggml_backend_zdnn_buffer * buffer) {
     if (buffer) {
         buffer->valid_repr = ZDNN_REPR_DATA_CURRENT;

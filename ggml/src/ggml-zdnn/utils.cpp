@@ -135,13 +135,20 @@ void ggml_zdnn_init_tensor(ggml_backend_zdnn_buffer * buffer, const ggml_tensor 
     }
 
     // Create the tensor descriptor based on tensor shape
+    // Note: zDNN requires all dimensions to be >= 1, so we clamp 0 to 1
+    // This can happen with SSM/Mamba layers in hybrid models like Falcon-H1R
+    const uint32_t ne0 = tensor->ne[0] > 0 ? (uint32_t)tensor->ne[0] : 1;
+    const uint32_t ne1 = tensor->ne[1] > 0 ? (uint32_t)tensor->ne[1] : 1;
+    const uint32_t ne2 = tensor->ne[2] > 0 ? (uint32_t)tensor->ne[2] : 1;
+    const uint32_t ne3 = tensor->ne[3] > 0 ? (uint32_t)tensor->ne[3] : 1;
+
     if (ggml_is_matrix(tensor)) {
         // 2D tensor (typical for weights)
         zdnn_init_pre_transformed_desc(
             ZDNN_2D,
             zdnn_type,
             &buffer->pre_tfm_desc,
-            tensor->ne[1], tensor->ne[0]
+            ne1, ne0
         );
     } else {
         // 4D tensor - use NHWC layout
@@ -149,7 +156,7 @@ void ggml_zdnn_init_tensor(ggml_backend_zdnn_buffer * buffer, const ggml_tensor 
             ZDNN_NHWC,
             zdnn_type,
             &buffer->pre_tfm_desc,
-            tensor->ne[3], tensor->ne[2], tensor->ne[1], tensor->ne[0]
+            ne3, ne2, ne1, ne0
         );
     }
 

@@ -245,20 +245,17 @@ void ggml_zdnn_silu(
     ggml_zdnn_ensure_stickified(src0_extra, src0);
 
     // Create a temporary ztensor for sigmoid result
-    // Note: clamp dimensions to >= 1 for SSM/Mamba layers that may have 0 dims
     zdnn_tensor_desc temp_pre_tfm_desc, temp_tfm_desc;
     zdnn_ztensor temp_ztensor;
-
-    const uint32_t dim1 = src0_extra->pre_tfm_desc.dim1 > 0 ? src0_extra->pre_tfm_desc.dim1 : 1;
-    const uint32_t dim2 = src0_extra->pre_tfm_desc.dim2 > 0 ? src0_extra->pre_tfm_desc.dim2 : 1;
-    const uint32_t dim3 = src0_extra->pre_tfm_desc.dim3 > 0 ? src0_extra->pre_tfm_desc.dim3 : 1;
-    const uint32_t dim4 = src0_extra->pre_tfm_desc.dim4 > 0 ? src0_extra->pre_tfm_desc.dim4 : 1;
 
     zdnn_init_pre_transformed_desc(
         src0_extra->pre_tfm_desc.layout,
         src0_extra->pre_tfm_desc.type,
         &temp_pre_tfm_desc,
-        dim4, dim3, dim2, dim1
+        src0_extra->pre_tfm_desc.dim4,
+        src0_extra->pre_tfm_desc.dim3,
+        src0_extra->pre_tfm_desc.dim2,
+        src0_extra->pre_tfm_desc.dim1
     );
 
     ZDNN_CHECK(zdnn_generate_transformed_desc(&temp_pre_tfm_desc, &temp_tfm_desc));

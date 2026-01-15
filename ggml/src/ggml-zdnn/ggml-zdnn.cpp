@@ -306,6 +306,21 @@ static bool ggml_zdnn_has_valid_dims(const ggml_tensor * tensor) {
     return true;
 }
 
+// Helper to check if tensor has a valid zDNN buffer
+// Returns false for view tensors (no extra) or tensors where zDNN buffer
+// creation was skipped (e.g., unsupported type or invalid dimensions)
+static bool ggml_zdnn_has_valid_buffer(const ggml_tensor * tensor) {
+    if (tensor->view_src != nullptr) {
+        // View tensors share their source's buffer - check the source
+        return ggml_zdnn_has_valid_buffer(tensor->view_src);
+    }
+    if (tensor->extra == nullptr) {
+        return false;
+    }
+    const ggml_backend_zdnn_buffer * buffer = (const ggml_backend_zdnn_buffer *)tensor->extra;
+    return buffer->ztensor.buffer_size > 0;
+}
+
 static bool ggml_zdnn_supports_op(const ggml_backend_zdnn_device_context * ctx_dev, const ggml_tensor * op) {
     switch (op->op) {
         case GGML_OP_NONE:
@@ -567,6 +582,12 @@ static bool ggml_zdnn_supports_op(const ggml_backend_zdnn_device_context * ctx_d
                 // zDNN requires all dimensions >= 1 (no zero dimensions)
                 // SSM tensors in hybrid models (e.g., Falcon-H1R) may have unusual shapes
                 if (!ggml_zdnn_has_valid_dims(src0)) {
+                    return false;
+                }
+
+                // Check if source tensor has a valid zDNN buffer
+                // Tensors without buffers (unsupported type, invalid dims) fall back to CPU
+                if (!ggml_zdnn_has_valid_buffer(src0)) {
                     return false;
                 }
 

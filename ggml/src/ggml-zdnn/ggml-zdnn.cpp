@@ -286,6 +286,26 @@ static bool ggml_zdnn_is_supported_type(ggml_type type) {
     }
 }
 
+// Helper to check if tensor has valid dimensions for zDNN
+// zDNN requires all dimensions to be >= 1 (no zero dimensions)
+// This catches SSM tensors in hybrid models like Falcon-H1R that may have
+// unusual shapes that collapse to zero in certain dimensions
+static bool ggml_zdnn_has_valid_dims(const ggml_tensor * tensor) {
+    // For 2D tensors (matrices), only check ne[0] and ne[1]
+    if (ggml_is_matrix(tensor)) {
+        return tensor->ne[0] >= 1 && tensor->ne[1] >= 1;
+    }
+    // For 4D tensors, check all dimensions
+    // Note: ggml uses 1 as default for unused dimensions, but some SSM ops
+    // may produce tensors with actual 0 dimensions
+    for (int i = 0; i < GGML_MAX_DIMS; i++) {
+        if (tensor->ne[i] < 1) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool ggml_zdnn_supports_op(const ggml_backend_zdnn_device_context * ctx_dev, const ggml_tensor * op) {
     switch (op->op) {
         case GGML_OP_NONE:
@@ -355,6 +375,11 @@ static bool ggml_zdnn_supports_op(const ggml_backend_zdnn_device_context * ctx_d
                     return false;
                 }
 
+                // zDNN requires all dimensions >= 1 (no zero dimensions)
+                if (!ggml_zdnn_has_valid_dims(src0) || !ggml_zdnn_has_valid_dims(src1)) {
+                    return false;
+                }
+
                 // Shapes must match for element-wise ops (no broadcasting for now)
                 if (src0->ne[0] != src1->ne[0] || src0->ne[1] != src1->ne[1] ||
                     src0->ne[2] != src1->ne[2] || src0->ne[3] != src1->ne[3]) {
@@ -373,6 +398,10 @@ static bool ggml_zdnn_supports_op(const ggml_backend_zdnn_device_context * ctx_d
                     return false;
                 }
 
+                if (!ggml_zdnn_has_valid_dims(src0)) {
+                    return false;
+                }
+
                 return ggml_zdnn_is_supported_type(src0->type);
             } break;
 
@@ -386,6 +415,10 @@ static bool ggml_zdnn_supports_op(const ggml_backend_zdnn_device_context * ctx_d
                 const ggml_tensor * src0 = op->src[0];
 
                 if (!ggml_is_contiguous(src0)) {
+                    return false;
+                }
+
+                if (!ggml_zdnn_has_valid_dims(src0)) {
                     return false;
                 }
 
@@ -419,6 +452,10 @@ static bool ggml_zdnn_supports_op(const ggml_backend_zdnn_device_context * ctx_d
                 }
 
                 if (!ggml_is_contiguous(src0)) {
+                    return false;
+                }
+
+                if (!ggml_zdnn_has_valid_dims(src0)) {
                     return false;
                 }
 
@@ -524,6 +561,12 @@ static bool ggml_zdnn_supports_op(const ggml_backend_zdnn_device_context * ctx_d
                 }
 
                 if (!ggml_zdnn_is_supported_type(src0->type)) {
+                    return false;
+                }
+
+                // zDNN requires all dimensions >= 1 (no zero dimensions)
+                // SSM tensors in hybrid models (e.g., Falcon-H1R) may have unusual shapes
+                if (!ggml_zdnn_has_valid_dims(src0)) {
                     return false;
                 }
 
